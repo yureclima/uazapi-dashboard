@@ -52,6 +52,9 @@ function InstanceAvatar({ url, alt, status }: { url?: string | null, alt: string
     )
 }
 
+import PhoneInput from 'react-phone-input-2'
+import 'react-phone-input-2/lib/style.css'
+
 function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClose: () => void, instanceName: string }) {
     const [phone, setPhone] = useState('')
     const [qrCode, setQrCode] = useState<string | null>(null)
@@ -104,7 +107,9 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
         setError(null)
         setStatus('connecting')
 
-        const result = await connectInstanceAction(instanceName, usePhone ? phone : undefined)
+        // Removemos caracteres não numéricos para a API
+        const cleanPhone = phone.replace(/\D/g, '')
+        const result = await connectInstanceAction(instanceName, usePhone ? cleanPhone : undefined)
 
         if (result.error) {
             setError(result.error)
@@ -136,13 +141,20 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-300">Telefone</label>
                                 <p className="text-xs text-gray-500">Opcional, serve para gerar código de pareamento</p>
-                                <input
-                                    type="text"
-                                    placeholder="Ex: 5511999999999"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    className="w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
-                                />
+
+                                <div className="dark-phone-input">
+                                    <PhoneInput
+                                        country={'br'}
+                                        value={phone}
+                                        onChange={setPhone}
+                                        placeholder="11 96123-4567"
+                                        inputClass="!w-full !h-12 !bg-gray-950 !border-gray-700 !text-white !rounded-lg focus:!border-indigo-500 focus:!ring-1 focus:!ring-indigo-500"
+                                        buttonClass="!bg-gray-950 !border-gray-700 !rounded-l-lg"
+                                        dropdownClass="!bg-gray-900 !text-gray-200 !border-gray-700"
+                                        buttonStyle={{ backgroundColor: '#030712', border: '1px solid #374151' }}
+                                        inputStyle={{ backgroundColor: '#030712', border: '1px solid #374151', color: '#f3f4f6', width: '100%', height: '48px' }}
+                                    />
+                                </div>
                             </div>
 
                             {error && (
