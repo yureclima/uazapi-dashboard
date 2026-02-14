@@ -101,8 +101,14 @@ export async function deleteConnection(id: string, instanceName: string) {
         // 1. Get Token
         const token = await getToken(instanceName).catch(() => null) // Ignore error if token missing, just delete from DB
 
-        // 2. Delete from Uazapi
-        await uazapi.deleteInstance(instanceName)
+        // 2. Delete from Uazapi (only if token is found)
+        if (token) {
+            try {
+                await uazapi.deleteInstance(token)
+            } catch (e) {
+                console.error('Falha ao deletar na Uazapi, continuando para deletar do banco local:', e)
+            }
+        }
 
         // 3. Delete from Supabase
         const { error } = await supabase

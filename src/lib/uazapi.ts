@@ -88,19 +88,20 @@ export const uazapi = {
         return true
     },
 
-    async deleteInstance(instanceName: string) {
-        console.log(`Deletando instancia: ${instanceName}`);
-        const res = await fetch(`${UAZAPI_URL}/instance/delete/${instanceName}`, {
+    async deleteInstance(token: string) {
+        console.log(`Deletando instancia via API...`);
+        const res = await fetch(`${UAZAPI_URL}/instance`, {
             method: 'DELETE',
             headers: {
-                'admintoken': ADMIN_TOKEN!,
+                'token': token,
+                'Accept': 'application/json'
             },
         })
 
         if (!res.ok) {
             const error = await res.text()
-            console.error('Erro ao deletar instancia:', error);
-            throw new Error(error || 'Falha ao deletar instância')
+            console.error('Erro ao deletar instancia na Uazapi:', error);
+            throw new Error(error || 'Falha ao deletar instância na Uazapi')
         }
         return true
     },
