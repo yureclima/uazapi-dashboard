@@ -90,7 +90,7 @@ export const uazapi = {
 
     async deleteInstance(token: string) {
         const res = await fetch(`${UAZAPI_URL}/instance/delete`, {
-            method: 'DELETE',
+            method: 'POST',
             headers: {
                 'token': token,
             },
