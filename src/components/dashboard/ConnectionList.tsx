@@ -53,13 +53,15 @@ function InstanceAvatar({ url, alt, status }: { url?: string | null, alt: string
 }
 
 function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClose: () => void, instanceName: string }) {
+    const [phone, setPhone] = useState('')
     const [qrCode, setQrCode] = useState<string | null>(null)
-    const [status, setStatus] = useState<string>('initializing')
+    const [status, setStatus] = useState<string>('selection')
     const [error, setError] = useState<string | null>(null)
     const [pairingCode, setPairingCode] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
-        if (!isOpen) return
+        if (!isOpen || status === 'selection') return
 
         let isMounted = true
         let intervalId: NodeJS.Timeout
@@ -69,8 +71,6 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                 const result = await getInstanceStatusAction(instanceName)
                 if (isMounted && result.success && result.data) {
                     const data = result.data
-                    // Adjust based on actual API response structure for status and qrcode
-                    // Doc says: status (disconnected, connecting, connected), qrcode (base64)
                     setStatus(data.instance?.status || data.status || 'unknown')
 
                     if (data.qrcode || data.instance?.qrcode) {
@@ -82,8 +82,8 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                     }
 
                     if (data.instance?.status === 'open' || data.instance?.status === 'connected') {
-                        onClose() // Auto close on success
-                        window.location.reload() // Refresh to update list
+                        onClose()
+                        window.location.reload()
                     }
                 }
             } catch (err) {
@@ -91,24 +91,27 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
             }
         }
 
-        // Initial connect call
-        connectInstanceAction(instanceName).then(res => {
-            if (isMounted) {
-                if (res.error) {
-                    setError(res.error)
-                }
-                fetchStatus() // Fetch immediately after connect attempt
-            }
-        })
-
-        // Poll every 2 seconds
         intervalId = setInterval(fetchStatus, 2000)
 
         return () => {
             isMounted = false
             clearInterval(intervalId)
         }
-    }, [isOpen, instanceName, onClose])
+    }, [isOpen, instanceName, onClose, status])
+
+    const startConnection = async (usePhone: boolean) => {
+        setLoading(true)
+        setError(null)
+        setStatus('connecting')
+
+        const result = await connectInstanceAction(instanceName, usePhone ? phone : undefined)
+
+        if (result.error) {
+            setError(result.error)
+            setStatus('selection')
+        }
+        setLoading(false)
+    }
 
     if (!isOpen) return null
 
@@ -127,45 +130,107 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                     Conectar WhatsApp
                 </h3>
 
-                <div className="flex flex-col items-center justify-center space-y-6">
-                    {error ? (
-                        <div className="p-4 rounded-lg bg-red-500/10 text-red-500 text-center w-full">
-                            <p className="font-medium">Erro ao conectar</p>
-                            <p className="text-sm opacity-80 mt-1">{error}</p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="relative flex items-center justify-center w-64 h-64 bg-white rounded-xl overflow-hidden">
-                                {qrCode ? (
-                                    <img
-                                        src={qrCode.startsWith('data:image') ? qrCode : `data:image/png;base64,${qrCode}`}
-                                        alt="QR Code"
-                                        className="w-full h-full object-contain"
-                                    />
-                                ) : (
-                                    <div className="flex flex-col items-center gap-3 text-gray-500">
-                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-                                        <span className="text-sm font-medium">Gerando QR Code...</span>
-                                    </div>
-                                )}
+                <div className="space-y-6">
+                    {status === 'selection' ? (
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Telefone</label>
+                                <p className="text-xs text-gray-500">Opcional, serve para gerar código de pareamento</p>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: 5511999999999"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    className="w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
+                                />
                             </div>
 
-                            {pairingCode && (
-                                <div className="text-center p-3 bg-gray-800 rounded-lg">
-                                    <p className="text-xs text-gray-400 mb-1">Código de Pareamento</p>
-                                    <p className="text-xl font-mono text-white tracking-widest">{pairingCode}</p>
-                                </div>
+                            {error && (
+                                <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                                    {error}
+                                </p>
                             )}
 
-                            <div className="text-center space-y-2">
-                                <p className="text-sm text-gray-300">
-                                    Abra o WhatsApp no seu celular e escaneie o código acima.
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    Status atual: <span className="text-indigo-400 font-mono capitalize">{status}</span>
-                                </p>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => startConnection(false)}
+                                    disabled={loading}
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-all disabled:opacity-50"
+                                >
+                                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrIcon className="h-5 w-5" />}
+                                    Gerar QR Code
+                                </button>
+                                <button
+                                    onClick={() => startConnection(true)}
+                                    disabled={loading || !phone}
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-600/30 bg-indigo-600/10 px-4 py-3 text-sm font-semibold text-indigo-400 hover:bg-indigo-600/20 transition-all disabled:opacity-50"
+                                >
+                                    Gerar Código de Pareamento
+                                </button>
                             </div>
-                        </>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center space-y-6">
+                            {error ? (
+                                <div className="p-4 rounded-lg bg-red-500/10 text-red-500 text-center w-full">
+                                    <p className="font-medium">Erro ao conectar</p>
+                                    <p className="text-sm opacity-80 mt-1">{error}</p>
+                                    <button
+                                        onClick={() => setStatus('selection')}
+                                        className="mt-4 text-xs underline"
+                                    >
+                                        Tentar novamente
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    {!pairingCode ? (
+                                        <div className="relative flex items-center justify-center w-64 h-64 bg-white rounded-xl overflow-hidden shadow-inner">
+                                            {qrCode ? (
+                                                <img
+                                                    src={qrCode.startsWith('data:image') ? qrCode : `data:image/png;base64,${qrCode}`}
+                                                    alt="QR Code"
+                                                    className="w-full h-full object-contain p-2"
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-3 text-gray-500">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                                                    <span className="text-sm font-medium">Aguardando API...</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="w-full space-y-4">
+                                            <div className="text-center p-6 bg-gray-950 rounded-xl border border-gray-800 shadow-inner">
+                                                <p className="text-xs text-gray-500 mb-3 uppercase tracking-widest font-bold">Código de Pareamento</p>
+                                                <p className="text-4xl font-mono text-white tracking-[0.2em] font-bold">{pairingCode}</p>
+                                            </div>
+                                            <p className="text-xs text-center text-gray-400">
+                                                Vá em Dispositivos Conectados {'>'} Conectar com número de telefone no seu celular.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="text-center space-y-3 w-full border-t border-gray-800 pt-6">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className={clsx(
+                                                "h-2 w-2 rounded-full animate-pulse",
+                                                status === 'connecting' ? "bg-yellow-500" : "bg-indigo-500"
+                                            )} />
+                                            <p className="text-sm text-gray-300">
+                                                Status: <span className="text-indigo-400 font-mono capitalize">{status}</span>
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setStatus('selection')}
+                                            className="text-xs text-gray-500 hover:text-white transition-colors"
+                                        >
+                                            Voltar à seleção
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

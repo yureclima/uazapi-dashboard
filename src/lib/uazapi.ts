@@ -56,14 +56,14 @@ export const uazapi = {
     },
 
     // INSTANCE ACTIONS (Require Token)
-    async connectInstance(token: string) {
+    async connectInstance(token: string, phone?: string) {
         const res = await fetch(`${UAZAPI_URL}/instance/connect`, {
             method: 'POST',
             headers: {
                 'token': token,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({}) // Body vazio para QR Code
+            body: JSON.stringify({ phone }) // Envia o phone se existir
         })
 
         if (!res.ok) { // 429 = Too Many Requests

@@ -197,10 +197,10 @@ export async function updateConnectionTeamAction(instanceName: string, teamId: s
     }
 }
 
-export async function connectInstanceAction(instanceName: string) {
+export async function connectInstanceAction(instanceName: string, phone?: string) {
     try {
         const token = await getToken(instanceName)
-        const result = await uazapi.connectInstance(token)
+        const result = await uazapi.connectInstance(token, phone)
         revalidatePath('/dashboard/connections')
         return { success: true, data: result }
     } catch (error: any) {
