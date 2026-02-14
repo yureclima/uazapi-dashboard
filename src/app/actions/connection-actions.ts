@@ -94,12 +94,15 @@ async function getToken(instanceName: string) {
     return data.token
 }
 
-export async function deleteConnection(id: string, instanceName: string) {
+export async function deleteConnection(id: string, instanceName: string, providedToken?: string | null) {
     const supabase = await createClient()
 
     try {
-        // 1. Get Token
-        const token = await getToken(instanceName).catch(() => null) // Ignore error if token missing, just delete from DB
+        // 1. Get Token (use provided or fetch from DB)
+        let token = providedToken;
+        if (!token) {
+            token = await getToken(instanceName).catch(() => null)
+        }
 
         // 2. Delete from Uazapi (only if token is found)
         if (token) {

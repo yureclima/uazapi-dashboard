@@ -233,10 +233,10 @@ export default function ConnectionList({ initialConnections }: { initialConnecti
         setLoading(false)
     }
 
-    const handleDelete = async (id: string, instanceName: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta conexão do PAINEL? Isso removerá o registro do banco de dados e desconectará a instância.')) return
+    const handleDelete = async (id: string, instanceName: string, token?: string | null) => {
+        if (!confirm('Tem certeza que deseja excluir esta conexão? Isso removerá a instância da Uazapi e do seu banco de dados.')) return
 
-        const result = await deleteConnection(id, instanceName)
+        const result = await deleteConnection(id, instanceName, token)
         if (result.success) {
             setConnections(prev => prev.filter(c => c.id !== id))
         } else {
@@ -464,7 +464,7 @@ export default function ConnectionList({ initialConnections }: { initialConnecti
 
                             <div className="mt-4 flex items-center justify-center border-t border-gray-800 pt-4">
                                 <button
-                                    onClick={() => handleDelete(conn.id, conn.instance_name)}
+                                    onClick={() => handleDelete(conn.id, conn.instance_name, conn.token)}
                                     className="flex items-center gap-1 text-xs font-medium text-red-500/70 hover:text-red-400 transition-colors"
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
