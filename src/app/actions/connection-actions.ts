@@ -19,13 +19,19 @@ export async function createConnection(formData: FormData) {
         redirect('/login')
     }
 
+    // Buscar o time do usuário (se ele pertencer a apenas um, herdar automaticamente)
+    const { data: userTeams } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', user.id)
+
+    const primaryTeamId = userTeams && userTeams.length === 1 ? userTeams[0].team_id : null
+
     try {
         // 1. Create in Uazapi (Init)
         const response = await uazapi.createInstance(instanceName)
 
         // Extract token. Adjust property name based on actual API response.
-        // Usually it's 'token' or 'hash' or inside 'instance'.
-        // Assuming response structure like { token: "..." } or { instance: { token: "..." } }
         const token = response.token || response.hash || response.instance?.token || (typeof response === 'string' ? response : null)
 
         if (!token) {
@@ -33,11 +39,12 @@ export async function createConnection(formData: FormData) {
             throw new Error('API não retornou o token da instância. Verifique os logs.')
         }
 
-        // 2. Link in Supabase with TOKEN
+        // 2. Link in Supabase with TOKEN and auto-team
         const { error } = await supabase.from('connections').insert({
             user_id: user.id,
             instance_name: instanceName,
-            token: token // Saving the token
+            token: token,
+            team_id: primaryTeamId // Auto-herança de time
         })
 
         if (error) throw error
@@ -56,6 +63,14 @@ export async function syncExistingConnections(instances: { instance_name: string
 
     if (!user) return { error: 'Não autorizado' }
 
+    // Buscar o time do usuário para sincronização também
+    const { data: userTeams } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', user.id)
+
+    const primaryTeamId = userTeams && userTeams.length === 1 ? userTeams[0].team_id : null
+
     try {
         const { data: existing } = await supabase.from('connections').select('instance_name')
         const existingNames = new Set(existing?.map(e => e.instance_name) || [])
@@ -65,7 +80,8 @@ export async function syncExistingConnections(instances: { instance_name: string
             .map(inst => ({
                 user_id: user.id,
                 instance_name: inst.instance_name,
-                token: inst.token // Now we have the token!
+                token: inst.token,
+                team_id: primaryTeamId // Auto-herança na sincronização
             }))
 
         if (toInsert.length > 0) {
