@@ -233,3 +233,32 @@ export async function getInstanceStatusAction(instanceName: string) {
         return { error: error.message }
     }
 }
+
+export async function getInstanceConnectionDataAction(instanceName: string) {
+    try {
+        const token = await getToken(instanceName)
+        const status = await uazapi.getInstanceStatus(token)
+
+        let number = null
+        if (status) {
+            const ownerId = status.instance?.owner || status.owner || status.instance?.profileName || status.profileName || status.instance?.number || status.number
+
+            if (typeof ownerId === 'string' && ownerId.includes('@')) {
+                number = ownerId.split('@')[0]
+            } else if (ownerId) {
+                number = ownerId
+            }
+        }
+
+        return {
+            success: true,
+            data: {
+                serverUrl: process.env.UAZAPI_SERVER_URL || '',
+                token: token,
+                number: number || 'Nenhum'
+            }
+        }
+    } catch (error: any) {
+        return { error: error.message }
+    }
+}

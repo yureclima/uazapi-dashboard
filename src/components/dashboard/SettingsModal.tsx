@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { RefreshCw, Power } from 'lucide-react'
 import clsx from 'clsx'
 import { getTeamsAction } from '@/app/actions/team-actions'
-import { updateConnectionTeamAction } from '@/app/actions/connection-actions'
+import { updateConnectionTeamAction, getInstanceConnectionDataAction } from '@/app/actions/connection-actions'
 
 type WebhookConfig = {
     webhookUrl: string
@@ -82,6 +82,9 @@ export default function SettingsModal({
     const [selectedTeam, setSelectedTeam] = useState<string>('')
     const [updatingTeam, setUpdatingTeam] = useState(false)
 
+    const [instanceData, setInstanceData] = useState<{ serverUrl: string, token: string, number: string } | null>(null)
+    const [loadingData, setLoadingData] = useState(false)
+
     useEffect(() => {
         if (initialWebhookConfig) {
             setConfig(initialWebhookConfig)
@@ -95,8 +98,16 @@ export default function SettingsModal({
                     setTeams(res.data)
                 }
             })
+
+            setLoadingData(true)
+            getInstanceConnectionDataAction(instanceName).then(res => {
+                if (res.success && res.data) {
+                    setInstanceData(res.data)
+                }
+                setLoadingData(false)
+            })
         }
-    }, [activeTab, isOpen])
+    }, [activeTab, isOpen, instanceName])
 
     useEffect(() => {
         setSelectedTeam(currentTeamId || '')
@@ -183,6 +194,32 @@ export default function SettingsModal({
                             <span className="text-gray-400 text-sm">Instância:</span>
                             <span className="text-white text-sm font-mono">{instanceName}</span>
                         </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-800">
+                        <h4 className="text-sm font-medium text-white mb-3">Dados da instância</h4>
+                        {loadingData ? (
+                            <div className="flex items-center justify-center p-4 gap-2 text-sm text-gray-400">
+                                <RefreshCw className="h-4 w-4 animate-spin" /> Carregando dados...
+                            </div>
+                        ) : instanceData ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <span className="block text-gray-400 text-sm mb-1">Server URL:</span>
+                                    <span className="text-white text-sm font-medium bg-gray-900 px-3 py-2 rounded-md border border-gray-700 block select-all overflow-hidden text-ellipsis whitespace-nowrap">{instanceData.serverUrl}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-gray-400 text-sm mb-1">Instance Token:</span>
+                                    <span className="text-white text-xs font-mono bg-gray-900 px-3 py-2 rounded-md border border-gray-700 block select-all overflow-hidden text-ellipsis whitespace-nowrap">{instanceData.token}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-gray-400 text-sm mb-1">Número conectado:</span>
+                                    <span className="text-white text-sm font-medium bg-gray-900 px-3 py-2 rounded-md border border-gray-700 block select-all overflow-hidden text-ellipsis whitespace-nowrap">{instanceData.number}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-red-400 text-sm bg-red-900/20 px-3 py-2 rounded-md border border-red-500/20 block">Falha ao carregar dados.</span>
+                        )}
                     </div>
 
                     <div className="pt-4 border-t border-gray-800">
