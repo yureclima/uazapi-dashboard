@@ -217,9 +217,11 @@ export async function connectInstanceAction(instanceName: string, phone?: string
     try {
         const token = await getToken(instanceName)
         const result = await uazapi.connectInstance(token, phone)
+        console.log(`[Uazapi] Connect Result for ${instanceName}:`, result)
         revalidatePath('/dashboard/connections')
         return { success: true, data: result }
     } catch (error: any) {
+        console.error(`[Uazapi] Connect Error for ${instanceName}:`, error)
         return { error: error.message }
     }
 }
@@ -228,8 +230,10 @@ export async function getInstanceStatusAction(instanceName: string) {
     try {
         const token = await getToken(instanceName)
         const status = await uazapi.getInstanceStatus(token)
+        console.log(`[Uazapi] Status Result for ${instanceName}:`, status)
         return { success: true, data: status }
     } catch (error: any) {
+        console.error(`[Uazapi] Status Error for ${instanceName}:`, error)
         return { error: error.message }
     }
 }

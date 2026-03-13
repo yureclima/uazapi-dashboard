@@ -59,9 +59,40 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
     const [phone, setPhone] = useState('')
     const [qrCode, setQrCode] = useState<string | null>(null)
     const [status, setStatus] = useState<string>('selection')
+    const [method, setMethod] = useState<'qr' | 'pairing' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [pairingCode, setPairingCode] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+
+    // Função utilitária para encontrar o código de pareamento recursivamente ou por chaves comuns
+    const findCodeInObject = (obj: any): string | null => {
+        if (!obj) return null
+        
+        // Lista rápida de chaves conhecidas em diversas APIs de WhatsApp (Uazapi, Evolution, etc)
+        const commonKeys = [
+            'pairingCode', 'pairing_code', 'code', 'paircode',
+            'pairingcode', 'pairing-code', 'pairing_Code'
+        ]
+
+        // 1. Tentar chaves diretas no objeto atual
+        for (const key of commonKeys) {
+            if (typeof obj[key] === 'string' && obj[key].length >= 6) {
+                return obj[key]
+            }
+        }
+
+        // 2. Tentar campos comuns que costumam conter o objeto da instância
+        const commonContainers = ['instance', 'instanceData', 'data', 'result']
+        for (const container of commonContainers) {
+            if (obj[container]) {
+                const found = findCodeInObject(obj[container])
+                if (found) return found
+            }
+        }
+
+        // 3. Busca exaustiva (recursiva limitada) se nada for encontrado
+        return null
+    }
 
     useEffect(() => {
         if (!isOpen || status === 'selection') return
@@ -72,6 +103,8 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
         const fetchStatus = async () => {
             try {
                 const result = await getInstanceStatusAction(instanceName)
+                console.log(`[Status ${instanceName}]:`, result) // Depuração no navegador
+                
                 if (isMounted && result.success && result.data) {
                     const data = result.data
                     setStatus(data.instance?.status || data.status || 'unknown')
@@ -80,8 +113,9 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                         setQrCode(data.qrcode || data.instance?.qrcode)
                     }
 
-                    if (data.pairingCode || data.instance?.pairingCode) {
-                        setPairingCode(data.pairingCode || data.instance?.pairingCode)
+                    const foundCode = findCodeInObject(data)
+                    if (foundCode) {
+                        setPairingCode(foundCode)
                     }
 
                     if (data.instance?.status === 'open' || data.instance?.status === 'connected') {
@@ -105,15 +139,29 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
     const startConnection = async (usePhone: boolean) => {
         setLoading(true)
         setError(null)
+        setMethod(usePhone ? 'pairing' : 'qr')
         setStatus('connecting')
 
-        // Removemos caracteres não numéricos para a API
-        const cleanPhone = phone.replace(/\D/g, '')
+        // Limpeza rigorosa do número: remove tudo que não é dígito
+        let cleanPhone = phone.replace(/\D/g, '')
+        
+        // Se o usuário digitou algo como 5555... (comum com masks que já trazem o DDI)
+        if (cleanPhone.startsWith('5555')) {
+            cleanPhone = cleanPhone.substring(2);
+        }
+        
+        console.log(`[Connecting] Instance: ${instanceName}, Phone: ${cleanPhone}`)
+        
         const result = await connectInstanceAction(instanceName, usePhone ? cleanPhone : undefined)
 
         if (result.error) {
             setError(result.error)
             setStatus('selection')
+        } else if (result.success && result.data) {
+            const foundCode = findCodeInObject(result.data)
+            if (foundCode) {
+                setPairingCode(foundCode)
+            }
         }
         setLoading(false)
     }
@@ -170,7 +218,7 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                                     className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-all disabled:opacity-50"
                                 >
                                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrIcon className="h-5 w-5" />}
-                                    Gerar QR Code
+                                    Conectar via QR Code
                                 </button>
                                 <button
                                     onClick={() => startConnection(true)}
@@ -196,30 +244,50 @@ function QrCodeModal({ isOpen, onClose, instanceName }: { isOpen: boolean, onClo
                                 </div>
                             ) : (
                                 <>
-                                    {!pairingCode ? (
-                                        <div className="relative flex items-center justify-center w-64 h-64 bg-white rounded-xl overflow-hidden shadow-inner">
-                                            {qrCode ? (
-                                                <img
-                                                    src={qrCode.startsWith('data:image') ? qrCode : `data:image/png;base64,${qrCode}`}
-                                                    alt="QR Code"
-                                                    className="w-full h-full object-contain p-2"
-                                                />
-                                            ) : (
-                                                <div className="flex flex-col items-center gap-3 text-gray-500">
-                                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-                                                    <span className="text-sm font-medium">Aguardando API...</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
+                                    {pairingCode ? (
                                         <div className="w-full space-y-4">
                                             <div className="text-center p-6 bg-gray-950 rounded-xl border border-gray-800 shadow-inner">
                                                 <p className="text-xs text-gray-500 mb-3 uppercase tracking-widest font-bold">Código de Pareamento</p>
                                                 <p className="text-4xl font-mono text-white tracking-[0.2em] font-bold">{pairingCode}</p>
                                             </div>
-                                            <p className="text-xs text-center text-gray-400">
-                                                Vá em Dispositivos Conectados {'>'} Conectar com número de telefone no seu celular.
+                                            <div className="p-4 bg-indigo-500/5 rounded-lg border border-indigo-500/10">
+                                                <p className="text-xs text-center text-gray-400">
+                                                    Abra o WhatsApp no seu celular {'>'} Dispositivos Conectados {'>'} Conectar com número de telefone e digite o código acima.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : qrCode ? (
+                                        <div className="relative flex flex-col items-center">
+                                            {method === 'pairing' && (
+                                                <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg w-full">
+                                                    <p className="text-[11px] text-yellow-500 text-center leading-tight">
+                                                        O código de pareamento não foi gerado pelo servidor. Por favor, use o QR Code abaixo ou tente novamente.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className="relative flex items-center justify-center w-64 h-64 bg-white rounded-xl overflow-hidden shadow-xl border-4 border-white">
+                                                <img
+                                                    src={qrCode.startsWith('data:image') ? qrCode : `data:image/png;base64,${qrCode}`}
+                                                    alt="QR Code"
+                                                    className="w-full h-full object-contain p-2"
+                                                />
+                                            </div>
+                                            <p className="mt-4 text-xs text-gray-400 text-center">
+                                                Abra o WhatsApp no seu celular e escaneie o código
                                             </p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                                            <div className="relative">
+                                                <div className="h-16 w-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                                                <Smartphone className="h-6 w-6 text-indigo-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-white font-medium">Conectando...</p>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    {method === 'pairing' ? `Gerando código para ${phone}` : 'Preparando QR Code...'}
+                                                </p>
+                                            </div>
                                         </div>
                                     )}
 
@@ -527,7 +595,7 @@ export default function ConnectionList({ initialConnections }: { initialConnecti
                                         className="flex items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-xs font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                                     >
                                         <QrIcon className="h-3.5 w-3.5" />
-                                        QR Code
+                                        Conectar
                                     </button>
                                     <button
                                         onClick={() => handleDisconnect(conn.instance_name)}

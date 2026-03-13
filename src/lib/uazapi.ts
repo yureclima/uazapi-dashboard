@@ -57,13 +57,16 @@ export const uazapi = {
 
     // INSTANCE ACTIONS (Require Token)
     async connectInstance(token: string, phone?: string) {
+        const body: any = {}
+        if (phone) body.phone = phone
+
         const res = await fetch(`${UAZAPI_URL}/instance/connect`, {
             method: 'POST',
             headers: {
                 'token': token,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ phone }) // Envia o phone se existir
+            body: JSON.stringify(body)
         })
 
         if (!res.ok) { // 429 = Too Many Requests
